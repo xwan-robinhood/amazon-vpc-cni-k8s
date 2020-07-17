@@ -69,6 +69,9 @@ if [[ ! -f "$BASE_CONFIG_PATH" ]]; then
     exit
 fi
 
+aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID --profile awstester && aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY --profile awstester
+aws sts get-caller-identity --profile awstester
+
 # double-check all our preconditions and requirements have been met
 check_is_installed docker
 check_is_installed aws
