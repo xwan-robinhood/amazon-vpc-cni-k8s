@@ -73,7 +73,7 @@ const (
 	UnknownInstanceType = "vpc ip resource(eni ip limit): unknown instance type"
 
 	// Stagger cleanup start time to avoid calling EC2 too much. Time in seconds.
-	eniCleanupStartupDelayMax = 300
+	eniCleanupStartupDelayMax = 1800
 	eniDeleteCooldownTime     = (5 * time.Minute)
 
 	// the default page size when paginating the DescribeNetworkInterfaces call
@@ -326,7 +326,7 @@ func New(useCustomNetworking bool) (*EC2InstanceMetadataCache, error) {
 	}
 
 	// Clean up leaked ENIs in the background
-	go wait.Forever(cache.cleanUpLeakedENIs, time.Hour)
+	go wait.Forever(cache.cleanUpLeakedENIs, 3 * time.Hour)
 
 	return cache, nil
 }
@@ -1518,7 +1518,7 @@ func (cache *EC2InstanceMetadataCache) getFilteredListOfNetworkInterfaces() ([]*
 
 	input := &ec2.DescribeNetworkInterfacesInput{
 		Filters:    []*ec2.Filter{tagFilter, statusFilter},
-		MaxResults: aws.Int64(describeENIPageSize),
+		//MaxResults: aws.Int64(describeENIPageSize),
 	}
 
 	var networkInterfaces []*ec2.NetworkInterface
