@@ -46,5 +46,5 @@ func main() {
 		panic(err)
 	}
 
-	go wait.Forever(cache.CleanUpLeakedENIs, time.Hour)
+	go wait.Forever(cache.CleanUpLeakedENIs, cleanupPeriod)
 }
