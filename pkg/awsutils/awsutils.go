@@ -326,7 +326,7 @@ func New(useCustomNetworking bool) (*EC2InstanceMetadataCache, error) {
 	}
 
 	// Clean up leaked ENIs in the background
-	go wait.Forever(cache.cleanUpLeakedENIs, 3 * time.Hour)
+	//go wait.Forever(cache.cleanUpLeakedENIs, time.Hour)
 
 	return cache, nil
 }
@@ -1443,7 +1443,11 @@ func (cache *EC2InstanceMetadataCache) DeallocIPAddresses(eniID string, ips []st
 	return nil
 }
 
-func (cache *EC2InstanceMetadataCache) cleanUpLeakedENIs() {
+func (cache *EC2InstanceMetadataCache) CleanUpLeakedENIs() {
+	cache.cleanUpLeakedENIsInternal(time.Duration(rand.Intn(eniCleanupStartupDelayMax)) * time.Second)
+}
+
+func (cache *EC2InstanceMetadataCache) cleanUpLeakedENIsInternal(startupDelay time.Duration) {
 	rand.Seed(time.Now().UnixNano())
 	startupDelay := time.Duration(rand.Intn(eniCleanupStartupDelayMax)) * time.Second
 	log.Infof("Will attempt to clean up AWS CNI leaked ENIs after waiting %s.", startupDelay)
