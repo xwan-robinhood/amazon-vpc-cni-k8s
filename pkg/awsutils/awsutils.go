@@ -385,7 +385,7 @@ func New(useCustomNetworking, disableENIProvisioning bool) (*EC2InstanceMetadata
 
 	// Clean up leaked ENIs in the background
 	if !disableENIProvisioning {
-		go wait.Forever(cache.cleanUpLeakedENIs, 3 * time.Hour)
+		// go wait.Forever(cache.cleanUpLeakedENIs, time.Hour)
 	}
 
 	return cache, nil
@@ -1496,7 +1496,7 @@ func (cache *EC2InstanceMetadataCache) DeallocPrefixAddresses(eniID string, pref
 	return nil
 }
 
-func (cache *EC2InstanceMetadataCache) cleanUpLeakedENIs() {
+func (cache *EC2InstanceMetadataCache) CleanUpLeakedENIs() {
 	cache.cleanUpLeakedENIsInternal(time.Duration(rand.Intn(eniCleanupStartupDelayMax)) * time.Second)
 }
 
