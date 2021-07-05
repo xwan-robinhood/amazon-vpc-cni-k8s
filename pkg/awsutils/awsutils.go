@@ -1449,7 +1449,7 @@ func (cache *EC2InstanceMetadataCache) CleanUpLeakedENIs() {
 
 func (cache *EC2InstanceMetadataCache) cleanUpLeakedENIsInternal(startupDelay time.Duration) {
 	rand.Seed(time.Now().UnixNano())
-	startupDelay := time.Duration(rand.Intn(eniCleanupStartupDelayMax)) * time.Second
+	startupDelay = time.Duration(rand.Intn(eniCleanupStartupDelayMax)) * time.Second
 	log.Infof("Will attempt to clean up AWS CNI leaked ENIs after waiting %s.", startupDelay)
 	time.Sleep(startupDelay)
 
