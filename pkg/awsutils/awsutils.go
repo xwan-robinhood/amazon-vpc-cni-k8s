@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net"
 	"os"
 	"regexp"
@@ -1496,15 +1495,6 @@ func (cache *EC2InstanceMetadataCache) DeallocPrefixAddresses(eniID string, pref
 }
 
 func (cache *EC2InstanceMetadataCache) CleanUpLeakedENIs() {
-	cache.cleanUpLeakedENIsInternal(time.Duration(rand.Intn(eniCleanupStartupDelayMax)) * time.Second)
-}
-
-func (cache *EC2InstanceMetadataCache) cleanUpLeakedENIsInternal(startupDelay time.Duration) {
-	rand.Seed(time.Now().UnixNano())
-	startupDelay = time.Duration(rand.Intn(eniCleanupStartupDelayMax)) * time.Second
-	log.Infof("Will attempt to clean up AWS CNI leaked ENIs after waiting %s.", startupDelay)
-	time.Sleep(startupDelay)
-
 	log.Debug("Checking for leaked AWS CNI ENIs.")
 	networkInterfaces, err := cache.getLeakedENIs()
 	if err != nil {
