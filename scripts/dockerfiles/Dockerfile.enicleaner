@@ -1,0 +1,29 @@
+ARG docker_arch
+ARG golang_image=golang:1.13-stretch
+
+FROM $golang_image as builder
+WORKDIR /go/src/github.com/aws/amazon-vpc-cni-k8s
+ARG GOARCH
+# Configure build with Go modules
+ENV GO111MODULE=on
+ENV GOPROXY=direct
+
+# Copy modules in before the rest of the source to only expire cache on module
+# changes:
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . ./
+RUN make build-eni-cleaner
+
+# Build the architecture specific container image:
+FROM $docker_arch/amazonlinux:2
+RUN yum update -y && \
+    yum clean all
+
+WORKDIR /app
+
+COPY --from=builder \
+    /go/src/github.com/aws/amazon-vpc-cni-k8s/eni-cleaner /app
+
+ENTRYPOINT /app/eni-cleaner

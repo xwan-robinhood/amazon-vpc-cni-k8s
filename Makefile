@@ -40,6 +40,10 @@ METRICS_IMAGE_NAME = $(METRICS_IMAGE)$(IMAGE_ARCH_SUFFIX):$(VERSION)
 METRICS_IMAGE_DIST = $(DESTDIR)/$(subst /,_,$(METRICS_IMAGE_NAME)).tar.gz
 REPO_FULL_NAME=aws/amazon-vpc-cni-k8s
 HELM_CHART_NAME ?= "aws-vpc-cni"
+# ENI_CLEANER_IMAGE runs the cleanup code for leaked ENIs.
+ENI_CLEANER_IMAGE = amazon/eni-cleaner
+ENI_CLEANER_IMAGE_NAME = $(ENI_CLEANER_IMAGE)$(IMAGE_ARCH_SUFFIX):$(VERSION)
+ENI_CLEANER_IMAGE_DIST = $(DESTDIR)/$(subst /,_,$(ENI_CLEANER_IMAGE_NAME)).tar.gz
 # TEST_IMAGE is the testing environment container image.
 TEST_IMAGE = amazon-k8s-cni-test
 TEST_IMAGE_NAME = $(TEST_IMAGE)$(IMAGE_ARCH_SUFFIX):$(VERSION)
@@ -105,13 +109,14 @@ DOCKER_BUILD_FLAGS = --build-arg GOARCH="$(ARCH)" \
 .DEFAULT_GOAL = build-linux
 
 # Build both CNI and metrics helper container images.
-all: docker docker-init docker-metrics   ## Builds Init, CNI and metrics helper container images.
+all: docker docker-init docker-metrics docker-eni-cleaner  ## Builds Init, CNI, metrics helper and eni cleaner container images.
 
 dist: all
 	mkdir -p $(DESTDIR)
 	docker save $(IMAGE_NAME) | gzip > $(IMAGE_DIST)
 	docker save $(INIT_IMAGE_NAME) | gzip > $(INIT_IMAGE_DIST)
 	docker save $(METRICS_IMAGE_NAME) | gzip > $(METRICS_IMAGE_DIST)
+	docker save $(ENI_CLEANER_IMAGE_NAME) | gzip > $(ENI_CLEANER_IMAGE_DIST)
 
 # Build the VPC CNI plugin agent using the host's Go toolchain.
 BUILD_MODE ?= -buildmode=pie
@@ -135,6 +140,18 @@ docker-init:     ## Build VPC CNI plugin Init container image.
 		-t "$(INIT_IMAGE_NAME)" \
 		.
 	@echo "Built Docker image \"$(INIT_IMAGE_NAME)\""
+
+# Build
+build-eni-cleaner:
+	go build -ldflags="-s -w" -o eni-cleaner ./cmd/eni-cleaner
+
+# Build ENI cleaner image.
+docker-eni-cleaner:
+	docker build $(DOCKER_BUILD_FLAGS) \
+		-f scripts/dockerfiles/Dockerfile.enicleaner \
+		-t "$(ENI_CLEANER_IMAGE_NAME)" \
+		.
+	@echo "Built Docker image \"$(ENI_CLEANER_IMAGE_NAME)\""
 
 # Run the built CNI container image to use in functional testing
 docker-func-test: docker     ## Run the built CNI container image to use in functional testing
