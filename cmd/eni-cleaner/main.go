@@ -47,4 +47,7 @@ func main() {
 	}
 
 	go wait.Forever(cache.CleanUpLeakedENIs, cleanupPeriod)
+
+	// block
+	select {}
 }
