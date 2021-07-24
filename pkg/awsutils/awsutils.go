@@ -98,6 +98,12 @@ var (
 		},
 		[]string{"fn", "error"},
 	)
+	awsStaleEniCount = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "awscni_aws_imds_stale_eni_count",
+			Help: "Number of enis present in imds that are not present on ec2 tracked by the aws cni pod",
+		},
+	)
 	prometheusRegistered = false
 )
 
@@ -211,6 +217,8 @@ type EC2InstanceMetadataCache struct {
 
 	imds   TypedIMDS
 	ec2SVC ec2wrapper.EC2
+	// staleENIs keeps a track of ENIs that exist in instance metadata service but not ec2.
+	staleENIs StringSet
 }
 
 // ENIMetadata contains information about an ENI
@@ -359,6 +367,7 @@ func New(useCustomNetworking, disableENIProvisioning bool) (*EC2InstanceMetadata
 	cache.imds = TypedIMDS{instrumentedIMDS{ec2Metadata}}
 	cache.clusterName = os.Getenv(clusterNameEnvVar)
 	cache.additionalENITags = loadAdditionalENITags()
+	cache.staleENIs = StringSet{}
 
 	region, err := ec2Metadata.Region()
 	if err != nil {
@@ -553,6 +562,11 @@ func (cache *EC2InstanceMetadataCache) GetAttachedENIs() (eniList []ENIMetadata,
 		enis[i], err = cache.getENIMetadata(mac)
 		if err != nil {
 			return nil, errors.Wrapf(err, "get attached ENIs: failed to retrieve ENI metadata for ENI: %s", mac)
+		}
+		if !cache.staleENIs.Has(enis[i].ENIID) {
+			enis = append(enis, enis[i])
+		} else {
+			log.Debugf("ignoring adding eni which exists in the dirty pool: %s ", enis[i].ENIID)
 		}
 	}
 	return enis, nil
@@ -1052,6 +1066,11 @@ func (cache *EC2InstanceMetadataCache) DescribeAllENIs() (DescribeAllENIsResult,
 	eniMap := make(map[string]ENIMetadata, len(allENIs))
 	var eniIDs []string
 	for _, eni := range allENIs {
+		// if this is a dirty eni that we discovered previously, dont even bother querying for it from the aws store
+		// to save some ec2 api calls
+		if cache.staleENIs.Has(eni.ENIID) {
+			continue
+		}
 		eniIDs = append(eniIDs, eni.ENIID)
 		eniMap[eni.ENIID] = eni
 	}
@@ -1072,8 +1091,11 @@ func (cache *EC2InstanceMetadataCache) DescribeAllENIs() (DescribeAllENIsResult,
 		if aerr, ok := err.(awserr.Error); ok {
 			if aerr.Code() == "InvalidNetworkInterfaceID.NotFound" {
 				badENIID := badENIID(aerr.Message())
+				// add this to a cache so we can eliminate it from future results
+				cache.staleENIs.Set(append(cache.staleENIs.SortedList(), badENIID))
 				log.Debugf("Could not find interface: %s, ID: %s", aerr.Message(), badENIID)
 				awsAPIErrInc("IMDSMetaDataOutOfSync", err)
+				awsStaleEniCount.Inc()
 				// Remove this ENI from the map
 				delete(eniMap, badENIID)
 				// Remove the failing ENI ID from the EC2 API request and try again
