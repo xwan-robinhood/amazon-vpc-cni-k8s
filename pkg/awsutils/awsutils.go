@@ -1479,8 +1479,15 @@ func (cache *EC2InstanceMetadataCache) DeallocIPAddresses(eniID string, ips []st
 		PrivateIpAddresses: ipsInput,
 	}
 
+	// overriding the ec2 client to force max retries to 1 only for this block
+	sess := awssession.New()
+	awsCfg := aws.NewConfig().WithRegion(cache.region)
+	awsCfg.MaxRetries = aws.Int(1)
+	sess = sess.Copy(awsCfg)
+	ec2SVC := ec2wrapper.New(sess)
+
 	start := time.Now()
-	_, err := cache.ec2SVC.UnassignPrivateIpAddressesWithContext(context.Background(), input)
+	_, err := ec2SVC.UnassignPrivateIpAddressesWithContext(context.Background(), input)
 	awsAPILatency.WithLabelValues("UnassignPrivateIpAddresses", fmt.Sprint(err != nil), awsReqStatus(err)).Observe(msSince(start))
 	if err != nil {
 		awsAPIErrInc("UnassignPrivateIpAddresses", err)

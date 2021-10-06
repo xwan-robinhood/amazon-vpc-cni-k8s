@@ -72,6 +72,9 @@ const (
 	envWarmIPTarget = "WARM_IP_TARGET"
 	noWarmIPTarget  = 0
 
+	envMinIpUnassignSize = "MIN_IP_UNASSIGN_SIZE"
+	noMinIpUnassignSize  = 5
+
 	// This environment variable is used to specify the desired minimum number of total IPs.
 	// When it is not set, ipamd defaults to 0.
 	// For example, for a m4.4xlarge node,
@@ -233,6 +236,7 @@ type IPAMContext struct {
 	warmIPTarget         int
 	minimumIPTarget      int
 	warmPrefixTarget     int
+	minIpUnassignSize    int
 	primaryIP            map[string]string // primaryIP is a map from ENI ID to primary IP of that ENI
 	lastNodeIPPoolAction time.Time
 	lastDecreaseIPPool   time.Time
@@ -368,6 +372,7 @@ func New(rawK8SClient client.Client, cachedK8SClient client.Client) (*IPAMContex
 	c.warmIPTarget = getWarmIPTarget()
 	c.minimumIPTarget = getMinimumIPTarget()
 	c.warmPrefixTarget = getWarmPrefixTarget()
+	c.minIpUnassignSize = getMinIPUnassignSize()
 
 	c.enablePodENI = enablePodENI()
 	c.enableManageUntaggedMode = enableManageUntaggedMode()
@@ -704,7 +709,7 @@ func (c *IPAMContext) tryUnassignCidrsFromAll() {
 			numFreeable := min(over, len(cidrs))
 			cidrs = cidrs[:numFreeable]
 
-			if len(cidrs) == 0 {
+			if len(cidrs) == 0 || len(cidrs) < c.minIpUnassignSize {
 				continue
 			}
 
@@ -1558,6 +1563,22 @@ func getWarmIPTarget() int {
 		}
 	}
 	return noWarmIPTarget
+}
+
+func getMinIPUnassignSize() int {
+	inputStr, found := os.LookupEnv(envMinIpUnassignSize)
+
+	if !found {
+		return noMinIpUnassignSize
+	}
+
+	if input, err := strconv.Atoi(inputStr); err == nil {
+		if input >= 0 {
+			log.Debugf("Using MIN_IP_UNASSIGN_SIZE %v", input)
+			return input
+		}
+	}
+	return noMinIpUnassignSize
 }
 
 func getMinimumIPTarget() int {
