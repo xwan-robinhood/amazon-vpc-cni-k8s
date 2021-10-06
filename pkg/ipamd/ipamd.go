@@ -67,6 +67,9 @@ const (
 	envWarmIPTarget = "WARM_IP_TARGET"
 	noWarmIPTarget  = 0
 
+	envMinIpUnassignSize = "MIN_IP_UNASSIGN_SIZE"
+	noMinIpUnassignSize  = 5
+
 	// This environment variable is used to specify the desired minimum number of total IPs.
 	// When it is not set, ipamd defaults to 0.
 	// For example, for a m4.4xlarge node,
@@ -197,6 +200,7 @@ type IPAMContext struct {
 	warmENITarget        int
 	warmIPTarget         int
 	minimumIPTarget      int
+	minIpUnassignSize    int
 	primaryIP            map[string]string // primaryIP is a map from ENI ID to primary IP of that ENI
 	lastNodeIPPoolAction time.Time
 	lastDecreaseIPPool   time.Time
@@ -300,6 +304,7 @@ func New(k8sapiClient kubernetes.Interface, eniConfig *eniconfig.ENIConfigContro
 	c.warmENITarget = getWarmENITarget()
 	c.warmIPTarget = getWarmIPTarget()
 	c.minimumIPTarget = getMinimumIPTarget()
+	c.minIpUnassignSize = getMinIPUnassignSize()
 
 	c.disableENIProvisioning = disablingENIProvisioning()
 	c.enablePodENI = enablePodENI()
@@ -546,7 +551,7 @@ func (c *IPAMContext) tryUnassignIPsFromAll() {
 				return
 			}
 
-			if len(ips) == 0 {
+			if len(ips) < c.minIpUnassignSize {
 				continue
 			}
 
@@ -1149,6 +1154,22 @@ func getWarmIPTarget() int {
 		}
 	}
 	return noWarmIPTarget
+}
+
+func getMinIPUnassignSize() int {
+	inputStr, found := os.LookupEnv(envMinIpUnassignSize)
+
+	if !found {
+		return noMinIpUnassignSize
+	}
+
+	if input, err := strconv.Atoi(inputStr); err == nil {
+		if input >= 0 {
+			log.Debugf("Using MIN_IP_UNASSIGN_SIZE %v", input)
+			return input
+		}
+	}
+	return noMinIpUnassignSize
 }
 
 func getMinimumIPTarget() int {
