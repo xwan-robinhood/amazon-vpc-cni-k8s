@@ -840,7 +840,7 @@ func TestEC2InstanceMetadataCache_SetUnmanagedENIs(t *testing.T) {
 	assert.False(t, ins.IsUnmanagedENI("eni-1"))
 }
 
-func TestEC2InstanceMetadataCache_cleanUpLeakedENIsInternal(t *testing.T) {
+func TestEC2InstanceMetadataCache_cleanUpLeakedENIs(t *testing.T) {
 	ctrl, mockEC2 := setup(t)
 	defer ctrl.Finish()
 
@@ -857,7 +857,7 @@ func TestEC2InstanceMetadataCache_cleanUpLeakedENIsInternal(t *testing.T) {
 
 	ins := &EC2InstanceMetadataCache{ec2SVC: mockEC2}
 	// Test checks that both mocks gets called.
-	ins.cleanUpLeakedENIsInternal(time.Millisecond)
+	ins.CleanUpLeakedENIs()
 }
 
 func setupDescribeNetworkInterfacesPagesWithContextMock(
