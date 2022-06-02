@@ -17,10 +17,14 @@ package cri
 import (
 	"context"
 	"os"
+	"time"
+
+	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/aws/amazon-vpc-cni-k8s/pkg/utils/logger"
-	"google.golang.org/grpc"
-	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 const (
@@ -47,7 +51,7 @@ func New() *Client {
 	return &Client{}
 }
 
-//GetRunningPodSandboxes get running sandboxIDs
+// GetRunningPodSandboxes get running sandboxIDs
 func (c *Client) GetRunningPodSandboxes(log logger.Logger) ([]*SandboxInfo, error) {
 	ctx := context.TODO()
 
@@ -56,7 +60,14 @@ func (c *Client) GetRunningPodSandboxes(log logger.Logger) ([]*SandboxInfo, erro
 		socketPath = criSocketPath
 	}
 	log.Debugf("Getting running pod sandboxes from %q", socketPath)
-	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithNoProxy(), grpc.WithBlock())
+
+	opts := []grpc_retry.CallOption{
+		grpc_retry.WithMax(5),
+		grpc_retry.WithBackoff(grpc_retry.BackoffExponential(100 * time.Millisecond)),
+		grpc_retry.WithCodes(codes.Unavailable, codes.Unknown, codes.ResourceExhausted, codes.DeadlineExceeded),
+	}
+	conn, err := grpc.Dial(socketPath, grpc.WithInsecure(), grpc.WithNoProxy(), grpc.WithBlock(),
+		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(opts...)))
 	if err != nil {
 		return nil, err
 	}
